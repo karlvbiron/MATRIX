@@ -38,6 +38,10 @@ M.A.T.R.I.X includes the following attack modules:
 
 ## Usage
 
+M.A.T.R.I.X Help Output:
+
+![Help Output](assets/matrix_help_output.png)
+
 Basic usage:
 ```
 python matrix.py -H <target_ip> -p <port> -a <attack_type>
