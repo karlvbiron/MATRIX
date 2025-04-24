@@ -40,6 +40,8 @@ M.A.T.R.I.X includes the following attack modules:
 
 M.A.T.R.I.X Help Output:
 
+Banner ASCII Font: [ANSI Shadow](https://patorjk.com/software/taag/#p=display&f=ANSI%20Shadow&t=MATRIX)
+
 ![Help Output](assets/matrix_help_output.png)
 
 Basic usage:
@@ -187,6 +189,54 @@ The modular design allows for:
 - Independent testing and development of individual attack types
 - Consistent interface across different attack functionalities
 - Simplified maintenance and updates
+
+## Design Pattern
+
+M.A.T.R.I.X follows the [Command pattern](https://www.oreilly.com/library/view/head-first-design/9781492077992/ch06.html), where each attack module encapsulates a specific action with a consistent execution interface. This design allows the main program to invoke different attacks without knowing their specific implementation details.
+
+Key aspects of the Command pattern implementation:
+- Each attack module represents a command with methods like `run_test()`, `launch_attack()`, or `run_comprehensive_scan()`
+- The main program (`matrix.py`) acts as the invoker that selects and executes the appropriate command
+- All commands share similar initialization parameters (host, port) for consistent interface
+- Each command encapsulates all the logic needed for its specific attack type
+
+This design makes it easy to add new attack types without modifying existing code, adhering to the Open/Closed Principle.
+
+## Dependencies
+
+M.A.T.R.I.X relies on the following key dependencies:
+
+- **pymodbus**: Core library for Modbus TCP protocol communication, used for reading and writing to Modbus registers and coils
+- **scapy**: Powerful packet manipulation library used for crafting custom packets in spoof attacks and analyzing PCAP files in replay attacks
+- **tabulate**: Used to create formatted tables for displaying attack results in a readable format
+
+Additional system requirements:
+- **libpcap-dev**: Required for the packet capture functionality used in replay and spoof attacks
+- **Root privileges**: Required for sending raw packets in spoofing attacks and capturing packets in replay attacks
+
+## Advanced Usage
+
+### Standalone Mode
+
+Some attack modules can be run in standalone mode with elevated privileges:
+
+```
+sudo python matrix.py -H 192.168.1.10 -p 502 -a replay --standalone -f traffic.pcap
+```
+
+```
+sudo python matrix.py -H 192.168.1.10 -p 502 -a spoof --standalone -s 192.168.1.20 -i eth0
+```
+
+Standalone mode is particularly useful for attacks that require root privileges or direct system access.
+
+### Error Handling
+
+M.A.T.R.I.X implements comprehensive error handling throughout all modules:
+
+- Connection failures are properly detected and reported
+- Modbus protocol errors are captured and logged
+- All exceptions are caught and displayed with descriptive messages
 
 ## Legal Disclaimer
 
