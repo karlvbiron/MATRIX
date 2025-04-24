@@ -235,14 +235,6 @@ sudo python matrix.py -H 192.168.1.10 -p 502 -a spoof --standalone -s 192.168.1.
 
 Standalone mode is particularly useful for attacks that require root privileges or direct system access.
 
-### Error Handling
-
-M.A.T.R.I.X implements comprehensive error handling throughout all modules:
-
-- Connection failures are properly detected and reported
-- Modbus protocol errors are captured and logged
-- All exceptions are caught and displayed with descriptive messages
-
 ## Legal Disclaimer
 
 This tool is provided for educational and authorized testing purposes only. Users are responsible for obtaining proper authorization before testing any systems. The authors accept no liability for misuse of this software.
