@@ -1,3 +1,8 @@
+[![Python 3.x](https://img.shields.io/badge/Python-3.x-blue.svg)](https://www.python.org/downloads/release/python-390/)
+[![Release v1.0](https://img.shields.io/badge/release-v1.0-orange.svg)](https://github.com/yourusername/matrix/releases)
+[![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Issues](https://img.shields.io/badge/issues-0%20open-brightgreen.svg)](https://github.com/yourusername/matrix/issues)
+
 # M.A.T.R.I.X
 
 **Modbus Attack Tool for Remote Industrial eXploitation**
