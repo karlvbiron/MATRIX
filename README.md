@@ -31,12 +31,18 @@ M.A.T.R.I.X includes the following attack modules:
    cd matrix
    ```
 
-2. Install dependencies:
+2. Set up the virtual environment (optional but recommended):
+   ```
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows, use 'venv\Scripts\activate'
+   ```
+
+3. Install dependencies:
    ```
    pip install -r requirements.txt
    ```
 
-3. Ensure you have proper permissions for packet operations (for spoof and replay attacks):
+4. Ensure you have proper permissions for packet operations (for spoof and replay attacks):
    ```
    sudo apt-get install libpcap-dev  # On Debian/Ubuntu
    ```
