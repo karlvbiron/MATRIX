@@ -1,0 +1,10 @@
+# Web UI dependencies for M.A.T.R.I.X (optional extra)
+# Install with: pip install -r requirements-web.txt
+# Core dependencies are in requirements.txt
+
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
+httpx==0.28.1  # For TestClient in tests
+sse-starlette==3.4.11  # For Server-Sent Events streaming
+jinja2==3.1.4  # For HTML templates

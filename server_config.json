@@ -1,0 +1,53 @@
+{
+    "server": {
+        "listenerAddress": "0.0.0.0",
+        "listenerPort": 502,
+        "tlsParams": {
+            "description": "Enable TLS by providing paths to private key and certificate. Set to null to disable.",
+            "privateKey": null,
+            "certificate": null
+        },
+        "logging": {
+            "format": "%(asctime)-15s %(threadName)-15s %(levelname)-8s %(module)-15s:%(lineno)-8s %(message)s",
+            "logLevel": "DEBUG"
+        },
+        "protocol": "TCP"
+    },
+    "registers": {
+        "description": "Modbus register values for the simulated ICS device.",
+        "zeroMode": false,
+        "initializeUndefinedRegisters": true,
+        "discreteInput": {
+            "0": true,
+            "1": false,
+            "2": true,
+            "3": false,
+            "4": true,
+            "5": false,
+            "6": true,
+            "7": false
+        },
+        "coils": {
+            "0": false,
+            "1": true,
+            "2": true,
+            "3": false,
+            "4": true,
+            "5": false,
+            "6": false,
+            "7": true
+        },
+        "holdingRegister": {
+            "0": 52225,
+            "1": 52226,
+            "2": 52227,
+            "3": 52228
+        },
+        "inputRegister": {
+            "0": 56577,
+            "1": 56578,
+            "2": 56579,
+            "3": 56580
+        }
+    }
+}

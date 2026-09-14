@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M.A.T.R.I.X - Modbus Attack Tool for Remote Industrial Exploitation</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Alpine.js Store for shared state -->
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('target', {
+                host: '127.0.0.1',
+                port: 502,
+                unit_id: 1
+            });
+
+            Alpine.store('results', {
+                read: null,
+                coil: null,
+                register: null,
+                overflow: null
+            });
+        });
+    </script>
+
+    <!-- HTMX CDN -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <style>
+        /* HMI Dark Industrial Palette */
+        :root {
+            --bg: #0C0F12;
+            --panel: #14181D;
+            --inset: #1B2026;
+            --border: #2A323B;
+            --accent: #3DDC84;
+            --danger: #FF4438;
+            --warn: #FFB020;
+            --tertiary: #9B7BE0;
+            --text: #C9D4DE;
+            --text-muted: #7A8792;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Courier New', monospace;
+        }
+
+        .panel {
+            background-color: var(--panel);
+            border: 1px solid var(--border);
+        }
+
+        .inset {
+            background-color: var(--inset);
+            border: 1px solid var(--border);
+        }
+
+        .accent { color: var(--accent); }
+        .danger { color: var(--danger); }
+        .warn { color: var(--warn); }
+        .tertiary { color: var(--tertiary); }
+        .text-muted { color: var(--text-muted); }
+
+        .btn-accent {
+            background-color: var(--accent);
+            color: var(--bg);
+            font-weight: bold;
+        }
+
+        .btn-accent:hover {
+            filter: brightness(1.1);
+            text-shadow: 0 0 8px var(--accent);
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+            font-weight: bold;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            filter: brightness(1.1);
+            text-shadow: 0 0 8px var(--danger);
+        }
+
+        .btn-danger:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .tab-active {
+            border-bottom: 2px solid var(--accent);
+            color: var(--accent);
+        }
+
+        .attack-tag {
+            background-color: var(--tertiary);
+            color: var(--bg);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        .glow-success {
+            text-shadow: 0 0 8px var(--accent);
+        }
+
+        .glow-danger {
+            text-shadow: 0 0 8px var(--danger);
+        }
+
+        input, select {
+            background-color: var(--inset);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.5rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+    </style>
+</head>
+<body x-data="{
+    activeTab: 'attacks',
+    confirmingAttack: null,
+    attackResults: {}
+}">
+    <div class="min-h-screen p-6">
+        <!-- Header -->
+        <header class="mb-6">
+            <h1 class="text-3xl font-bold mb-2 accent">M.A.T.R.I.X</h1>
+            <p class="text-muted">Modbus Attack Tool for Remote Industrial Exploitation</p>
+        </header>
+
+        <!-- Target Bar -->
+        <div class="panel p-4 mb-6 rounded">
+            <div class="flex items-center gap-4">
+                <span class="text-muted">TARGET:</span>
+                <div class="flex gap-2 items-center">
+                    <label class="text-sm text-muted">Host:</label>
+                    <input type="text" x-model="$store.target.host" class="w-40 rounded px-2 py-1 text-sm">
+                </div>
+                <div class="flex gap-2 items-center">
+                    <label class="text-sm text-muted">Port:</label>
+                    <input type="number" x-model.number="$store.target.port" class="w-24 rounded px-2 py-1 text-sm">
+                </div>
+                <div class="flex gap-2 items-center">
+                    <label class="text-sm text-muted">Unit ID:</label>
+                    <input type="number" x-model.number="$store.target.unit_id" class="w-20 rounded px-2 py-1 text-sm" min="0" max="255">
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-6 mb-6 border-b border-gray-700">
+            <button
+                @click="activeTab = 'attacks'"
+                :class="activeTab === 'attacks' ? 'tab-active' : 'text-muted'"
+                class="pb-2 px-2 hover:text-white transition-colors">
+                ATTACKS
+            </button>
+            <button
+                @click="activeTab = 'monitor'"
+                :class="activeTab === 'monitor' ? 'tab-active' : 'text-muted'"
+                class="pb-2 px-2 hover:text-white transition-colors">
+                LIVE MONITOR
+            </button>
+            <button
+                @click="activeTab = 'attack-ics'"
+                :class="activeTab === 'attack-ics' ? 'tab-active' : 'text-muted'"
+                class="pb-2 px-2 hover:text-white transition-colors">
+                ATT&CK FOR ICS
+            </button>
+        </div>
+
+        <!-- Attacks Tab -->
+        <div x-show="activeTab === 'attacks'">
+            <div class="grid grid-cols-1 gap-4">
+                {% for attack in attacks %}
+                <div class="panel p-4 rounded">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="text-xl font-bold mb-1">{{ attack.name.upper() }}</h3>
+                            <p class="text-sm text-muted mb-2">{{ attack.description }}</p>
+                            {% if attack.attack_technique %}
+                            <span class="attack-tag">
+                                {{ attack.attack_technique.technique_id }} - {{ attack.attack_technique.technique_name }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Attack Forms -->
+                    {% if attack.name == 'read' %}
+                    <div x-data="{ coil_start: 0, coil_count: 8, discrete_start: 0, discrete_count: 8, holding_start: 0, holding_count: 4, input_start: 0, input_count: 4 }">
+                        <div class="inset p-3 rounded mt-3">
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <label class="text-muted">Coils Start:</label>
+                                    <input type="number" x-model.number="coil_start" class="w-full rounded px-2 py-1 mt-1" min="0">
+                                </div>
+                                <div>
+                                    <label class="text-muted">Count:</label>
+                                    <input type="number" x-model.number="coil_count" class="w-full rounded px-2 py-1 mt-1" min="1">
+                                </div>
+                                <div>
+                                    <label class="text-muted">Discrete Start:</label>
+                                    <input type="number" x-model.number="discrete_start" class="w-full rounded px-2 py-1 mt-1" min="0">
+                                </div>
+                                <div>
+                                    <label class="text-muted">Count:</label>
+                                    <input type="number" x-model.number="discrete_count" class="w-full rounded px-2 py-1 mt-1" min="1">
+                                </div>
+                                <div>
+                                    <label class="text-muted">Holding Start:</label>
+                                    <input type="number" x-model.number="holding_start" class="w-full rounded px-2 py-1 mt-1" min="0">
+                                </div>
+                                <div>
+                                    <label class="text-muted">Count:</label>
+                                    <input type="number" x-model.number="holding_count" class="w-full rounded px-2 py-1 mt-1" min="1">
+                                </div>
+                                <div>
+                                    <label class="text-muted">Input Start:</label>
+                                    <input type="number" x-model.number="input_start" class="w-full rounded px-2 py-1 mt-1" min="0">
+                                </div>
+                                <div>
+                                    <label class="text-muted">Count:</label>
+                                    <input type="number" x-model.number="input_count" class="w-full rounded px-2 py-1 mt-1" min="1">
+                                </div>
+                            </div>
+                            <button
+                                @click="fetch('/api/attacks/read/run', {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({target: $store.target, coil_start: coil_start, coil_count: coil_count, discrete_start: discrete_start, discrete_count: discrete_count, holding_start: holding_start, holding_count: holding_count, input_start: input_start, input_count: input_count})
+                                }).then(r => r.json()).then(data => $store.results.read = data)"
+                                class="btn-accent px-4 py-2 rounded mt-3 hover:opacity-90 transition-opacity">
+                                Run Read Attack
+                            </button>
+                        </div>
+                        <div x-show="$store.results.read" class="mt-3 inset p-3 rounded">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span :class="$store.results.read?.success ? 'accent glow-success' : 'danger glow-danger'"
+                                      class="font-bold" x-text="$store.results.read?.success ? '✓ SUCCESS' : '✗ FAILED'"></span>
+                                <span class="text-sm text-muted" x-text="$store.results.read?.timestamp"></span>
+                            </div>
+                            <div class="text-sm">
+                                <div x-show="$store.results.read?.error" class="danger" x-text="'Error: ' + $store.results.read?.error"></div>
+                                <div x-show="$store.results.read?.data" class="mt-2">
+                                    <pre class="text-xs overflow-auto" x-text="JSON.stringify($store.results.read?.data, null, 2)"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% elif attack.name == 'coil' %}
+                    <div x-data="{ start: 0, count: 8, confirming: false }">
+                        <div class="inset p-3 rounded mt-3">
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <label class="text-muted">Start Address:</label>
+                                    <input type="number" x-model.number="start" class="w-full rounded px-2 py-1 mt-1" min="0">
+                                </div>
+                                <div>
+                                    <label class="text-muted">Count:</label>
+                                    <input type="number" x-model.number="count" class="w-full rounded px-2 py-1 mt-1" min="1">
+                                </div>
+                            </div>
+                            <div x-show="!confirming">
+                                <button @click="confirming = true" class="btn-danger px-4 py-2 rounded mt-3 hover:opacity-90 transition-opacity">
+                                    Run Coil Write Attack
+                                </button>
+                            </div>
+                            <div x-show="confirming" class="mt-3 warn">
+                                <p class="text-sm mb-2">⚠ This will WRITE to coils. Confirm?</p>
+                                <button
+                                    @click="fetch('/api/attacks/coil/run', {
+                                        method: 'POST',
+                                        headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify({target: $store.target, start, count})
+                                    }).then(r => r.json()).then(data => {$store.results.coil = data; confirming = false;})"
+                                    class="btn-danger px-3 py-1 rounded text-sm">
+                                    CONFIRM
+                                </button>
+                                <button @click="confirming = false" class="px-3 py-1 rounded text-sm ml-2 text-muted hover:text-white">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                        <div x-show="$store.results.coil" class="mt-3 inset p-3 rounded">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span :class="$store.results.coil?.success ? 'accent glow-success' : 'danger glow-danger'"
+                                      class="font-bold" x-text="$store.results.coil?.success ? '✓ SUCCESS' : '✗ FAILED'"></span>
+                            </div>
+                            <div x-show="$store.results.coil?.error" class="danger text-sm" x-text="'Error: ' + $store.results.coil?.error"></div>
+                        </div>
+                    </div>
+
+                    {% elif attack.name == 'register' %}
+                    <div x-data="{ start: 0, count: 4, confirming: false }">
+                        <div class="inset p-3 rounded mt-3">
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <label class="text-muted">Start Address:</label>
+                                    <input type="number" x-model.number="start" class="w-full rounded px-2 py-1 mt-1" min="0">
+                                </div>
+                                <div>
+                                    <label class="text-muted">Count:</label>
+                                    <input type="number" x-model.number="count" class="w-full rounded px-2 py-1 mt-1" min="1">
+                                </div>
+                            </div>
+                            <div x-show="!confirming">
+                                <button @click="confirming = true" class="btn-danger px-4 py-2 rounded mt-3 hover:opacity-90 transition-opacity">
+                                    Run Register Write Attack
+                                </button>
+                            </div>
+                            <div x-show="confirming" class="mt-3 warn">
+                                <p class="text-sm mb-2">⚠ This will WRITE to holding registers. Confirm?</p>
+                                <button
+                                    @click="fetch('/api/attacks/register/run', {
+                                        method: 'POST',
+                                        headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify({target: $store.target, start, count})
+                                    }).then(r => r.json()).then(data => {$store.results.register = data; confirming = false;})"
+                                    class="btn-danger px-3 py-1 rounded text-sm">
+                                    CONFIRM
+                                </button>
+                                <button @click="confirming = false" class="px-3 py-1 rounded text-sm ml-2 text-muted hover:text-white">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                        <div x-show="$store.results.register" class="mt-3 inset p-3 rounded">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span :class="$store.results.register?.success ? 'accent glow-success' : 'danger glow-danger'"
+                                      class="font-bold" x-text="$store.results.register?.success ? '✓ SUCCESS' : '✗ FAILED'"></span>
+                            </div>
+                            <div x-show="$store.results.register?.error" class="danger text-sm" x-text="'Error: ' + $store.results.register?.error"></div>
+                        </div>
+                    </div>
+
+                    {% elif attack.name == 'overflow' %}
+                    <div x-data="{ start: 0, confirming: false }">
+                        <div class="inset p-3 rounded mt-3">
+                            <div class="text-sm">
+                                <label class="text-muted">Start Address:</label>
+                                <input type="number" x-model.number="start" class="w-full rounded px-2 py-1 mt-1" min="0">
+                            </div>
+                            <div x-show="!confirming">
+                                <button @click="confirming = true" class="btn-danger px-4 py-2 rounded mt-3 hover:opacity-90 transition-opacity">
+                                    Run Overflow Attack
+                                </button>
+                            </div>
+                            <div x-show="confirming" class="mt-3 warn">
+                                <p class="text-sm mb-2">⚠ This will attempt overflow writes. Confirm?</p>
+                                <button
+                                    @click="fetch('/api/attacks/overflow/run', {
+                                        method: 'POST',
+                                        headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify({target: $store.target, start})
+                                    }).then(r => r.json()).then(data => {$store.results.overflow = data; confirming = false;})"
+                                    class="btn-danger px-3 py-1 rounded text-sm">
+                                    CONFIRM
+                                </button>
+                                <button @click="confirming = false" class="px-3 py-1 rounded text-sm ml-2 text-muted hover:text-white">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                        <div x-show="$store.results.overflow" class="mt-3 inset p-3 rounded">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span :class="$store.results.overflow?.success ? 'accent glow-success' : 'danger glow-danger'"
+                                      class="font-bold" x-text="$store.results.overflow?.success ? '✓ SUCCESS' : '✗ FAILED'"></span>
+                            </div>
+                            <div x-show="$store.results.overflow?.error" class="danger text-sm" x-text="'Error: ' + $store.results.overflow?.error"></div>
+                        </div>
+                    </div>
+
+                    {% elif attack.name == 'dos' %}
+                    <div class="inset p-3 rounded mt-3">
+                        <p class="text-sm text-muted mb-2">Parameters: threads, duration, max_requests</p>
+                        <button disabled class="btn-danger px-4 py-2 rounded opacity-40 cursor-not-allowed">
+                            Run DoS Attack
+                        </button>
+                        <p class="text-sm warn mt-2">⚠ Disabled in web MVP (requires MATRIX_WEB_ENABLE_DANGEROUS=1)</p>
+                    </div>
+
+                    {% elif attack.name == 'replay' %}
+                    <div class="inset p-3 rounded mt-3">
+                        <p class="text-sm text-muted mb-2">Parameters: pcap_file (browser cannot send local file paths)</p>
+                        <button disabled class="btn-danger px-4 py-2 rounded opacity-40 cursor-not-allowed">
+                            Run Replay Attack
+                        </button>
+                        <p class="text-sm warn mt-2">⚠ Disabled in web MVP (requires MATRIX_WEB_ENABLE_DANGEROUS=1)</p>
+                    </div>
+
+                    {% elif attack.name == 'spoof' %}
+                    <div class="inset p-3 rounded mt-3">
+                        <p class="text-sm text-muted mb-2">Parameters: spoof_ip, interface</p>
+                        <button disabled class="btn-danger px-4 py-2 rounded opacity-40 cursor-not-allowed">
+                            Run Spoof Attack
+                        </button>
+                        <p class="text-sm warn mt-2">⚠ Disabled in web MVP (requires MATRIX_WEB_ENABLE_DANGEROUS=1)</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Live Monitor Tab (Stub) -->
+        <!-- Live Monitor Tab -->
+        <div x-show="activeTab === 'monitor'"
+             x-data="{
+                 monitorWindow: {
+                     coil_start: 0,
+                     coil_count: 8,
+                     holding_start: 0,
+                     holding_count: 4
+                 },
+                 session: null,
+                 eventSource: null,
+                 coils: {},
+                 holding_registers: {},
+                 lastUpdated: null,
+                 changedCoils: {},
+                 changedHoldingRegisters: {}
+             }"
+             x-init="
+                 $watch('activeTab', value => {
+                     if (value !== 'monitor' && eventSource) {
+                         eventSource.close();
+                         eventSource = null;
+                     }
+                 })
+             ">
+
+            <h2 class="text-2xl font-bold mb-6 accent">LIVE MONITOR</h2>
+
+            <!-- Session Controls -->
+            <div class="panel p-4 mb-6 rounded">
+                <div class="mb-4">
+                    <h3 class="text-lg font-bold mb-3">Session Controls</h3>
+
+                    <!-- Window Configuration -->
+                    <div class="grid grid-cols-4 gap-3 mb-4">
+                        <div>
+                            <label class="text-sm text-muted">Coil Start:</label>
+                            <input type="number" x-model.number="monitorWindow.coil_start"
+                                   class="w-full rounded px-2 py-1 text-sm" min="0" max="65535">
+                        </div>
+                        <div>
+                            <label class="text-sm text-muted">Coil Count:</label>
+                            <input type="number" x-model.number="monitorWindow.coil_count"
+                                   class="w-full rounded px-2 py-1 text-sm" min="1" max="2000">
+                        </div>
+                        <div>
+                            <label class="text-sm text-muted">Holding Start:</label>
+                            <input type="number" x-model.number="monitorWindow.holding_start"
+                                   class="w-full rounded px-2 py-1 text-sm" min="0" max="65535">
+                        </div>
+                        <div>
+                            <label class="text-sm text-muted">Holding Count:</label>
+                            <input type="number" x-model.number="monitorWindow.holding_count"
+                                   class="w-full rounded px-2 py-1 text-sm" min="1" max="125">
+                        </div>
+                    </div>
+
+                    <!-- Start/Stop Buttons -->
+                    <div class="flex gap-3 items-center">
+                        <button
+                            @click="
+                                fetch('/api/monitor/start', {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({
+                                        target: $store.target,
+                                        window: monitorWindow,
+                                        interval: 1.0
+                                    })
+                                }).then(r => r.json()).then(data => {
+                                    session = data;
+                                    coils = data.coils || {};
+                                    holding_registers = data.holding_registers || {};
+                                    lastUpdated = data.last_updated;
+
+                                    // Open EventSource
+                                    if (eventSource) eventSource.close();
+                                    eventSource = new EventSource('/api/monitor/stream');
+                                    eventSource.onmessage = (e) => {
+                                        const state = JSON.parse(e.data);
+
+                                        // Detect changes for coils
+                                        if (state.coils) {
+                                            Object.keys(state.coils).forEach(addr => {
+                                                if (coils[addr] !== undefined && coils[addr] !== state.coils[addr]) {
+                                                    changedCoils[addr] = true;
+                                                    setTimeout(() => delete changedCoils[addr], 800);
+                                                }
+                                            });
+                                        }
+
+                                        // Detect changes for holding_registers
+                                        if (state.holding_registers) {
+                                            Object.keys(state.holding_registers).forEach(addr => {
+                                                if (holding_registers[addr] !== undefined && holding_registers[addr] !== state.holding_registers[addr]) {
+                                                    changedHoldingRegisters[addr] = true;
+                                                    setTimeout(() => delete changedHoldingRegisters[addr], 800);
+                                                }
+                                            });
+                                        }
+
+                                        coils = state.coils || {};
+                                        holding_registers = state.holding_registers || {};
+                                        lastUpdated = state.last_updated;
+                                        session = state;
+                                    };
+                                    eventSource.onerror = () => {
+                                        console.error('EventSource error');
+                                        if (eventSource) eventSource.close();
+                                        eventSource = null;
+                                    };
+                                }).catch(err => {
+                                    console.error('Monitor start failed:', err);
+                                    session = {connected: false, error: err.message};
+                                })
+                            "
+                            :disabled="session?.connected === true"
+                            class="btn-accent px-4 py-2 rounded hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
+                            Start Monitor
+                        </button>
+
+                        <button
+                            @click="
+                                fetch('/api/monitor/stop', {method: 'POST'})
+                                    .then(() => {
+                                        if (eventSource) {
+                                            eventSource.close();
+                                            eventSource = null;
+                                        }
+                                        session = null;
+                                        coils = {};
+                                        holding_registers = {};
+                                        lastUpdated = null;
+                                    })
+                            "
+                            :disabled="!session || session.connected !== true"
+                            class="btn-danger px-4 py-2 rounded hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
+                            Stop Monitor
+                        </button>
+
+                        <!-- Status Indicator -->
+                        <div x-show="session" class="ml-4 flex items-center gap-2">
+                            <span class="text-sm text-muted">Status:</span>
+                            <span
+                                :class="{
+                                    'accent glow-success': session?.connected === true,
+                                    'danger glow-danger': session?.error
+                                }"
+                                class="font-bold text-sm"
+                                x-text="session?.connected ? 'CONNECTED' : (session?.error ? 'ERROR' : 'CONNECTING')">
+                            </span>
+                        </div>
+
+                        <!-- Last Updated -->
+                        <div x-show="lastUpdated" class="ml-auto text-sm text-muted">
+                            <span>Last update: </span>
+                            <span x-text="lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '-'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coil LED Grid -->
+            <div x-show="session?.connected === true" class="mb-6">
+                <h3 class="text-lg font-bold mb-3">Coils (LED Grid)</h3>
+                <div class="panel p-4 rounded">
+                    <div class="grid gap-2"
+                         :style="`grid-template-columns: repeat(${Math.min(monitorWindow.coil_count, 16)}, minmax(0, 1fr))`">
+                        <template x-for="i in monitorWindow.coil_count" :key="i">
+                            <div
+                                :class="{
+                                    'inset': !coils[monitorWindow.coil_start + i - 1],
+                                    'bg-[var(--accent)]': coils[monitorWindow.coil_start + i - 1] && !changedCoils[monitorWindow.coil_start + i - 1],
+                                    'bg-[var(--danger)]': changedCoils[monitorWindow.coil_start + i - 1]
+                                }"
+                                class="aspect-square flex flex-col items-center justify-center rounded border transition-all duration-200"
+                                :style="coils[monitorWindow.coil_start + i - 1] && !changedCoils[monitorWindow.coil_start + i - 1] ? 'box-shadow: 0 0 8px var(--accent); color: var(--bg); font-weight: bold;' : ''">
+                                <span class="text-xs" x-text="monitorWindow.coil_start + i - 1"></span>
+                                <span class="text-sm font-bold mt-1"
+                                      x-text="coils[monitorWindow.coil_start + i - 1] ? 'ON' : 'OFF'">
+                                </span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Holding Registers -->
+            <div x-show="session?.connected === true">
+                <h3 class="text-lg font-bold mb-3">Holding Registers</h3>
+                <div class="panel p-4 rounded">
+                    <div class="grid grid-cols-4 gap-3">
+                        <template x-for="i in monitorWindow.holding_count" :key="i">
+                            <div
+                                :class="{'bg-[var(--warn)]': changedHoldingRegisters[monitorWindow.holding_start + i - 1]}"
+                                class="inset p-3 rounded border transition-colors duration-300">
+                                <div class="text-xs text-muted mb-1"
+                                     x-text="'HR' + (monitorWindow.holding_start + i - 1)">
+                                </div>
+                                <div class="font-mono text-sm"
+                                     x-text="holding_registers[monitorWindow.holding_start + i - 1] !== undefined ? holding_registers[monitorWindow.holding_start + i - 1] : '-'">
+                                </div>
+                                <div class="font-mono text-xs text-muted"
+                                     x-text="holding_registers[monitorWindow.holding_start + i - 1] !== undefined ? '0x' + holding_registers[monitorWindow.holding_start + i - 1].toString(16).toUpperCase().padStart(4, '0') : ''">
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ATT&CK for ICS Tab (Stub) -->
+        <!-- ATT&CK for ICS Tab -->
+        <div x-show="activeTab === 'attack-ics'"
+             x-data="{
+                 version: null,
+                 mappings: [],
+                 error: null,
+                 loading: false
+             }"
+             x-init="
+                 // Fetch mappings when tab becomes active
+                 $watch('activeTab', value => {
+                     if (value === 'attack-ics' && mappings.length === 0 && !loading) {
+                         loading = true;
+                         fetch('/api/mappings')
+                             .then(r => r.json())
+                             .then(data => {
+                                 version = data.version;
+                                 mappings = data.mappings;
+                                 loading = false;
+                             })
+                             .catch(err => {
+                                 error = err.message;
+                                 loading = false;
+                             });
+                     }
+                 });
+                 // Initial load if tab is already active
+                 if (activeTab === 'attack-ics') {
+                     loading = true;
+                     fetch('/api/mappings')
+                         .then(r => r.json())
+                         .then(data => {
+                             version = data.version;
+                             mappings = data.mappings;
+                             loading = false;
+                         })
+                         .catch(err => {
+                             error = err.message;
+                             loading = false;
+                         });
+                 }
+             ">
+
+            <h2 class="text-2xl font-bold mb-6 accent">ATT&CK FOR ICS COVERAGE</h2>
+
+            <!-- Loading State -->
+            <div x-show="loading" class="text-center p-8">
+                <p class="text-muted">Loading MITRE ATT&CK for ICS mappings...</p>
+            </div>
+
+            <!-- Error State -->
+            <div x-show="error" class="panel p-6 rounded">
+                <p class="danger">Error loading mappings: <span x-text="error"></span></p>
+            </div>
+
+            <!-- Matrix Table -->
+            <div x-show="!loading && !error && mappings.length > 0">
+                <!-- Version Header -->
+                <div class="mb-4">
+                    <p class="text-sm text-muted">
+                        MITRE ATT&CK for ICS
+                        <span x-text="version" class="accent font-bold"></span>
+                    </p>
+                </div>
+
+                <!-- Coverage Matrix -->
+                <div class="panel rounded overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="inset">
+                            <tr>
+                                <th class="px-4 py-3 text-sm font-bold border-b border-gray-700">Attack</th>
+                                <th class="px-4 py-3 text-sm font-bold border-b border-gray-700">Technique ID</th>
+                                <th class="px-4 py-3 text-sm font-bold border-b border-gray-700">Technique Name</th>
+                                <th class="px-4 py-3 text-sm font-bold border-b border-gray-700">Tactic</th>
+                                <th class="px-4 py-3 text-sm font-bold border-b border-gray-700">Legacy ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="mapping in mappings" :key="mapping.attack">
+                                <tr class="border-b border-gray-800 hover:bg-gray-900 transition-colors">
+                                    <td class="px-4 py-3 font-bold uppercase" x-text="mapping.attack"></td>
+                                    <td class="px-4 py-3">
+                                        <span class="attack-tag font-mono" x-text="mapping.technique_id"></span>
+                                    </td>
+                                    <td class="px-4 py-3" x-text="mapping.technique_name"></td>
+                                    <td class="px-4 py-3 text-sm text-muted" x-text="mapping.tactic"></td>
+                                    <td class="px-4 py-3 font-mono text-sm text-muted" x-text="mapping.legacy_id || '—'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

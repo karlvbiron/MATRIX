@@ -1,12 +1,12 @@
 [![Python 3.x](https://img.shields.io/badge/Python-3.x-blue.svg)](https://www.python.org/downloads/release/python-390/)
-[![Release v1.0](https://img.shields.io/badge/release-v1.0-orange.svg)](https://github.com/yourusername/matrix/releases)
+[![Release v1.0](https://img.shields.io/badge/release-v1.0-orange.svg)](https://github.com/karlvbiron/MATRIX/releases)
 [![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Issues](https://img.shields.io/badge/issues-0%20open-brightgreen.svg)](https://github.com/yourusername/matrix/issues)
-[![Blog](https://img.shields.io/badge/Related%20Blog-Lights%20Out%20and%20Stalled%20Factories-blue)](https://www.trustwave.com/en-us/resources/blogs/spiderlabs-blog/lights-out-and-stalled-factories-using-matrix-to-learn-about-modbus-vulnerabilities/)
+[![Issues](https://img.shields.io/badge/issues-0%20open-brightgreen.svg)](https://github.com/karlvbiron/MATRIX/issues)
+[![Blog](https://img.shields.io/badge/Related%20Blog-Lights%20Out%20and%20Stalled%20Factories-blue)](https://www.levelblue.com/blogs/spiderlabs-blog/lights-out-and-stalled-factories-using-matrix-to-learn-about-modbus-vulnerabilities/)
 
 ## Featured Technical Article
-📝 **[Lights Out and Stalled Factories: Using M.A.T.R.I.X to Learn About Modbus Vulnerabilities](https://www.trustwave.com/en-us/resources/blogs/spiderlabs-blog/lights-out-and-stalled-factories-using-matrix-to-learn-about-modbus-vulnerabilities/)**
-Check out the Trustwave SpiderLabs technical article that demonstrates M.A.T.R.I.X in action against a vulnerable Modbus TCP server dockerized target. The article provides detailed walkthroughs of each attack module, complete with practical examples and security insights tailored to industrial control systems in the energy and manufacturing sectors. A must-read for anyone looking to understand the practical applications of this tool in ICS security testing. 
+📝 **[Lights Out and Stalled Factories: Using M.A.T.R.I.X to Learn About Modbus Vulnerabilities](https://www.levelblue.com/blogs/spiderlabs-blog/lights-out-and-stalled-factories-using-matrix-to-learn-about-modbus-vulnerabilities/)**
+Check out the LevelBlue SpiderLabs technical article that demonstrates M.A.T.R.I.X in action against a vulnerable Modbus TCP server dockerized target. The article provides detailed walkthroughs of each attack module, complete with practical examples and security insights tailored to industrial control systems in the energy and manufacturing sectors. A must-read for anyone looking to understand the practical applications of this tool in ICS security testing.
 
 
 # M.A.T.R.I.X
@@ -16,6 +16,8 @@ Check out the Trustwave SpiderLabs technical article that demonstrates M.A.T.R.I
 M.A.T.R.I.X is a comprehensive security testing tool for Modbus TCP protocol implementations. It provides multiple attack modules for security research and penetration testing of industrial control systems.
 
 > ⚠️ **WARNING**: This tool is designed for authorized security testing only. Using this tool against systems without proper permission is illegal and unethical.
+
+> 🆕 **New in v2:** M.A.T.R.I.X now includes configurable register/coil ranges, MITRE ATT&CK for ICS mappings, and an optional local web dashboard. The command-line workflow below is unchanged and fully backward-compatible. See [What's New in v2](#whats-new-in-v2) for the additions.
 
 ## Features
 
@@ -33,8 +35,8 @@ M.A.T.R.I.X includes the following attack modules:
 
 1. Clone the repository:
    ```
-   git clone https://github.com/karlvbiron/matrix.git
-   cd matrix
+   git clone https://github.com/karlvbiron/MATRIX.git
+   cd MATRIX
    ```
 
 2. Set up the virtual environment (optional but recommended):
@@ -52,6 +54,8 @@ M.A.T.R.I.X includes the following attack modules:
    ```
    sudo apt-get install libpcap-dev  # On Debian/Ubuntu
    ```
+
+> 💡 The web dashboard has its own optional dependencies. If you plan to use it, also run `pip install -r requirements-web.txt`. See [The Web Dashboard](#the-web-dashboard-optional).
 
 ## Usage
 
@@ -97,22 +101,31 @@ Spoof Modbus responses:
 python matrix.py -H 192.168.1.10 -p 502 -a spoof -s 192.168.1.20 -i docker0
 ```
 
+> 🆕 The `read`, `coil`, `register`, and `overflow` modules also accept `--start`, `--count`, and `--unit-id` to target arbitrary address windows. See [Configurable Register and Coil Ranges](#1-configurable-register-and-coil-ranges).
+
 ## Project Structure
 
 ```
 matrix/
 ├── matrix.py                                      # Main tool script
 ├── requirements.txt                               # Dependencies
+├── requirements-web.txt                           # Optional web dashboard dependencies
 ├── README.md                                      # Documentation
-└── attacks/                                       # Attack modules
-    ├── __init__.py                                # Package initialization
-    ├── modbus_unauthorized_read.py                # Unauthorized read module
-    ├── modbus_coil_write_attack.py                # Coil attack module
-    ├── modbus_holding_registers_write_attack.py   # Register attack module
-    ├── modbus_overflow_attack.py                  # Overflow attack module
-    ├── modbus_dos_attack.py                       # DoS attack module
-    ├── modbus_replay_attack.py                    # Replay attack module
-    └── modbus_spoof_response.py                   # Response spoofing module
+├── attacks/                                       # Attack modules
+│   ├── __init__.py                                # Package initialization
+│   ├── modbus_unauthorized_read.py                # Unauthorized read module
+│   ├── modbus_coil_write_attack.py                # Coil attack module
+│   ├── modbus_holding_registers_write_attack.py   # Register attack module
+│   ├── modbus_overflow_attack.py                  # Overflow attack module
+│   ├── modbus_dos_attack.py                       # DoS attack module
+│   ├── modbus_replay_attack.py                    # Replay attack module
+│   ├── modbus_spoof_response.py                   # Response spoofing module
+│   ├── attack_result.py                           # Shared structured result object
+│   ├── attack_mapping.py                          # MITRE ATT&CK for ICS mappings
+│   ├── formatter.py                               # Console output formatting
+│   └── validation.py                              # Modbus parameter validation
+├── webapp/                                        # Optional web dashboard (FastAPI)
+└── tests/                                         # Test suite
 ```
 
 ## Architecture
@@ -122,6 +135,8 @@ The M.A.T.R.I.X tool is designed with a modular architecture that separates the 
 ### Class Diagram
 
 ![Class Diagram](assets/matrix_class_diagram.png)
+
+> 📌 This diagram depicts the original (v1) class architecture. In v2, each attack class additionally exposes a callable `execute()` method returning an `AttackResult` object (see [What's New in v2](#whats-new-in-v2)); the original methods shown here are preserved for backward compatibility.
 
 The class diagram illustrates the object-oriented architecture of M.A.T.R.I.X:
 
@@ -143,6 +158,8 @@ Each attack module inherits common attributes like host IP, port, and ModbusTcpC
 ### Package Structure
 
 ![Package Structure](assets/matrix_package_diagram.png)
+
+> 📌 This diagram depicts the original (v1) package structure and its three core dependencies. v2 adds the `webapp/` package, a `tests/` suite, and several `attacks/` support modules (`attack_mapping.py`, `attack_result.py`, `formatter.py`, `validation.py`), along with optional web dependencies listed in `requirements-web.txt` (see [What's New in v2](#whats-new-in-v2)).
 
 The package organization of M.A.T.R.I.X follows a logical structure:
 
@@ -166,9 +183,11 @@ The arrows between components represent import relationships, showing how the mo
 
 ![Attack Workflows](assets/matrix_workflow_diagram.png)
 
+> 📌 This diagram depicts the original (v1) attack workflows. The underlying attack logic is unchanged in v2; the additions (configurable ranges, ATT&CK mapping, and the web dashboard) layer on top of these workflows rather than altering them (see [What's New in v2](#whats-new-in-v2)).
+
 The workflow diagram outlines the execution process for each attack type:
 
-- **Unauthorized Read Attack**: 
+- **Unauthorized Read Attack**:
   - Connects to the target Modbus server
   - Sequentially reads values from coils, discrete inputs, holding registers, and input registers
   - Reports the discovered information
@@ -219,6 +238,8 @@ Key aspects of the Command pattern implementation:
 
 This design makes it easy to add new attack types without modifying existing code, adhering to the Open/Closed Principle.
 
+> 🆕 In v2, each attack module additionally exposes a callable `execute()` method that returns a structured `AttackResult` object, allowing the same attack logic to drive both the command line and the web dashboard from a single code path. Console output is handled by a separate formatting layer, so the CLI behavior remains identical to v1.
+
 ## Dependencies
 
 M.A.T.R.I.X relies on the following key dependencies:
@@ -246,6 +267,121 @@ sudo python matrix.py -H 192.168.1.10 -p 502 -a spoof --standalone -s 192.168.1.
 ```
 
 Standalone mode is particularly useful for attacks that require root privileges or direct system access.
+
+---
+
+## What's New in v2
+
+Version 2 expands M.A.T.R.I.X from a fixed command-line demonstration into a more flexible and legible teaching and research instrument. **All original functionality and command-line usage is preserved and backward-compatible.** The additions below are layered on top of the existing tool.
+
+Three additions:
+
+1. **[Configurable register and coil ranges](#1-configurable-register-and-coil-ranges)**, target arbitrary address windows instead of hardcoded ones.
+2. **[MITRE ATT&CK for ICS mapping](#2-mitre-attck-for-ics-mapping)**, every module tagged to a recognized technique.
+3. **[An optional web dashboard](#3-the-web-dashboard-optional)**, a local, browser-based console with a live state monitor.
+
+### 1. Configurable Register and Coil Ranges
+
+The `read`, `coil`, `register`, and `overflow` modules now accept explicit address-window parameters instead of operating only on hardcoded ranges:
+
+- `--start`, the starting Modbus address
+- `--count`, how many coils or registers to act on
+- `--unit-id`, the Modbus unit/device identifier
+
+Defaults reproduce the original behavior exactly, so existing commands are unaffected. For example, to read a specific window:
+
+```
+python matrix.py -a read -H 127.0.0.1 -p 502 --start 2 --count 2
+```
+
+![Configurable register and coil ranges](assets/configurable_ranges.png)
+
+Parameters are validated against Modbus protocol limits (for example, a single request may read at most 2000 coils or 125 registers, and addresses are bounded to the 16-bit space) **before any packet is sent**. An out-of-range request is rejected with a clear message rather than emitting a malformed request:
+
+![Range parameter validation](assets/range_validation.png)
+
+### 2. MITRE ATT&CK for ICS Mapping
+
+Each attack module is now mapped to the [MITRE ATT&CK for ICS](https://attack.mitre.org/matrices/ics/) technique it most closely represents. Mappings are defined in one central, version-stamped location (`attacks/attack_mapping.py`) and, at the time of writing, target **ATT&CK for ICS v19.2**. Where a technique's identifier changed in a recent framework revision, the prior (legacy) identifier is recorded alongside the current one.
+
+Run `--list-mappings` to print the full coverage matrix as a table (or as machine-readable JSON with `--output json`). Each row lists a module alongside its technique ID, technique name, tactic, and any legacy ID:
+
+```
+python matrix.py --list-mappings
+```
+
+![MITRE ATT&CK for ICS coverage matrix](assets/attack_ics_matrix_cli.png)
+
+Each attack also annotates its own output with its technique ID as it runs, so the framing travels with the result:
+
+![Inline ATT&CK for ICS technique tag](assets/attack_ics_inline_tag.png)
+
+The current mapping is below (two of these, `read` and `overflow`, are judgment calls rather than exact matches):
+
+| Module | Technique (ATT&CK for ICS v19.2) | Tactic |
+| --- | --- | --- |
+| `read` | Point & Tag Identification | Collection |
+| `coil` | Command Message (Unauthorized Message) | Impair Process Control |
+| `register` | Modify Parameter | Impair Process Control |
+| `overflow` | Denial of Service | Inhibit Response Function |
+| `dos` | Denial of Service | Inhibit Response Function |
+| `replay` | Command Message (Unauthorized Message) | Impair Process Control |
+| `spoof` | Reporting Message (Unauthorized Message) | Evasion / Impair Process Control |
+
+### 3. The Web Dashboard (optional)
+
+An optional local, browser-based dashboard orchestrates the same attack modules used by the command line and adds a live, operator-style state monitor. It is a demonstration and teaching console, **not** an operations platform.
+
+Install the web dependencies and launch it:
+
+```
+pip install -r requirements-web.txt
+python matrix.py --web
+```
+
+By default the dashboard binds to `127.0.0.1:8000` (loopback only). A browser interface that can issue ICS write commands should not be reachable across a network by accident, so exposure beyond the local machine is an explicit, opt-in choice. In the same spirit, the most disruptive modules (`dos`, `replay`, and `spoof`) are gated behind the `MATRIX_WEB_ENABLE_DANGEROUS=1` environment variable before they can be triggered from the browser.
+
+**Attacks view.** Each module is rendered as a card with its real parameters and ATT&CK tag. Read operations are styled as safe; destructive write operations are styled as dangerous, so the difference between "observe" and "alter" is legible at a glance:
+
+![Web dashboard: Attacks view](assets/web_attacks_view.png)
+
+Running a module returns its structured result inline:
+
+![Web dashboard: read attack result](assets/web_read_result.png)
+
+**Live Monitor.** This opens a streaming connection and continuously polls a chosen window of coils and holding registers, rendering coils as an indicator (LED) grid and holding registers as decimal/hex value cells:
+
+![Web dashboard: Live Monitor](assets/web_live_monitor.png)
+
+Paired with an attack, the monitor makes manipulation visible in real time. When a coil-write is fired against the target, the affected cells are briefly flagged in red as they flip:
+
+![Web dashboard: Live Monitor during an attack](assets/web_live_monitor_attack.png)
+
+**ATT&CK for ICS view.** This renders the coverage matrix in the browser as a reference alongside the live attacks:
+
+![Web dashboard: ATT&CK for ICS coverage view](assets/web_attack_ics_matrix.png)
+
+#### Dashboard architecture
+
+The dashboard reuses the shared attack modules in-process (no subprocess), so there is a single source of truth for what each attack does:
+
+![Dashboard architecture](assets/dashboard_architecture_diagram.png)
+
+The live monitor runs a read-only poll → stream → render loop; a separate attack alters the target and surfaces on the same panel:
+
+![Live monitor data flow](assets/live_monitor_dataflow_diagram.png)
+
+### v2 Limitations
+
+In the spirit of the original article, it is worth being candid about what v2 does not do:
+
+- **Still lab-bound.** Everything here was built and exercised against the same Dockerized `oitc/modbus-server` target. It has not been validated against real PLCs or other simulators, and its behavior outside this environment is untested. Configurable ranges make the tool *aimable* in principle, but that is not the same as *verified* against arbitrary hardware.
+- **The dashboard is single-target, single-session.** No historical storage, no multi-user support, and no authentication beyond the loopback binding. It should never be exposed beyond a controlled lab.
+- **The most impactful modules remain the most constrained.** As in v1, the overflow attack is blunted by the Python target's strict type enforcement, and the spoofing module's full effect cannot be observed against this target. These are limitations of the safe test environment.
+- **The ATT&CK mapping involves judgment.** Two of the seven mappings are explicit judgment calls, and the identifiers are pinned to one framework version and will need maintenance as ATT&CK evolves.
+- **"Live" is not real-time in the industrial sense.** The monitor polls on an interval and streams snapshots.
+
+---
 
 ## Legal Disclaimer
 
